@@ -1,7 +1,6 @@
 from flask import Flask, render_template, jsonify, request, abort
 import os
 import re
-from typing import List, Dict
 
 from jinja2 import Environment, BaseLoader, StrictUndefined, TemplateError
 
@@ -16,7 +15,7 @@ TEMPLATE_DIR = os.path.join(BASE_DIR, "script_templates")
 HOME_DIR = os.path.expanduser("~")
 CONFIG_ROOT = os.environ.get("TEMPLATE_EDITOR_ROOT")
 
-ROOTS: List[Dict[str, str]] = [
+ROOTS = [
     {"id": "home", "label": "Home directory", "path": os.path.realpath(HOME_DIR)},
 ]
 
@@ -34,7 +33,7 @@ ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
 jinja_env = Environment(loader=BaseLoader(), undefined=StrictUndefined)
 
 
-def is_subpath(path: str, parent: str) -> bool:
+def is_subpath(path, parent):
     """Return True if path is inside parent (or equal)."""
     path_real = os.path.realpath(path)
     parent_real = os.path.realpath(parent)
@@ -45,12 +44,12 @@ def is_subpath(path: str, parent: str) -> bool:
     return common == parent_real
 
 
-def is_allowed_path(path: str) -> bool:
+def is_allowed_path(path):
     """Return True if the path is under any allowed root."""
     return any(is_subpath(path, root) for root in ALLOWED_ROOT_PATHS)
 
 
-def extract_jinja_variables(template_text: str) -> List[str]:
+def extract_jinja_variables(template_text):
     """
     Extract simple Jinja-style variables like {{ variable_name }} from the template.
 
@@ -61,7 +60,7 @@ def extract_jinja_variables(template_text: str) -> List[str]:
     return vars_found
 
 
-def safe_filename(name: str) -> bool:
+def safe_filename(name):
     """Very basic filename validation."""
     if not name or name.strip() == "":
         return False
@@ -79,7 +78,7 @@ def index():
 @app.route("/api/templates", methods=["GET"])
 def list_templates():
     """Return list of available bash script templates."""
-    templates: List[Dict[str, str]] = []
+    templates = []
     if os.path.isdir(TEMPLATE_DIR):
         for entry in sorted(os.listdir(TEMPLATE_DIR)):
             if entry.startswith("."):
@@ -95,7 +94,7 @@ def list_templates():
 
 
 @app.route("/api/template/<name>", methods=["GET"])
-def get_template(name: str):
+def get_template(name):
     """Return the content of a specific template and the variables in it."""
     if "/" in name or "\\" in name or ".." in name:
         abort(400, description="Invalid template name")
@@ -105,7 +104,8 @@ def get_template(name: str):
         abort(404, description="Template not found")
 
     try:
-        with open(template_path, "r", encoding="utf-8") as f:
+        # Use default system encoding for compatibility with older Python
+        with open(template_path, "r") as f:
             content = f.read()
     except OSError:
         abort(500, description="Failed to read template")
@@ -209,7 +209,7 @@ def api_render():
         tmpl = jinja_env.from_string(template_text)
         rendered = tmpl.render(**variables)
     except TemplateError as exc:
-        abort(400, description=f"Template rendering error: {exc}")
+        abort(400, description="Template rendering error: %s" % exc)
 
     return jsonify({"rendered": rendered})
 
@@ -240,14 +240,16 @@ def api_save():
         abort(400, description="Invalid filename")
 
     try:
-        os.makedirs(directory_real, exist_ok=True)
+        if not os.path.isdir(directory_real):
+            os.makedirs(directory_real)
     except OSError:
         abort(500, description="Failed to create directory")
 
     file_path = os.path.join(directory_real, filename)
 
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
+        # Use default system encoding for compatibility with older Python
+        with open(file_path, "w") as f:
             f.write(content)
     except OSError:
         abort(500, description="Failed to save file")
