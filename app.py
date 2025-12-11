@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request, abort
 import os
 import re
 import logging
+from datetime import date
 
 from jinja2 import Environment, BaseLoader, StrictUndefined, TemplateError
 
@@ -18,6 +19,22 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "script_templates")
+
+# File logging to logs/app-YYYY-MM-DD.log (a new file for each day the app starts)
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+try:
+    if not os.path.isdir(LOG_DIR):
+        os.makedirs(LOG_DIR)
+    log_file_path = os.path.join(LOG_DIR, "app-%s.log" % date.today().isoformat())
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
+    logger.addHandler(file_handler)
+except Exception:
+    # If file logging fails for any reason, continue with stdout/stderr logging only.
+    logger.warning("File logging could not be initialized; continuing without app-YYYY-MM-DD.log")
 
 # Roots that are available in the "Save to..." dialog:
 # - The user's home directory
