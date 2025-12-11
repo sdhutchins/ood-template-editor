@@ -90,9 +90,12 @@ def extract_jinja_variables(template_text):
     """
     Extract simple Jinja-style variables like {{ variable_name }} from the template.
 
-    This is intentionally conservative and only supports simple identifiers.
+    This is intentionally conservative and only supports simple identifiers as the
+    first token inside the braces. It ignores filters and other syntax that may
+    follow the variable name, e.g. {{ user | default('friend') }}.
     """
-    pattern = re.compile(r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}")
+    # Match {{ variable_name ... }} and capture the first identifier only.
+    pattern = re.compile(r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)[^}]*}}")
     vars_found = sorted(set(pattern.findall(template_text)))
     return vars_found
 
