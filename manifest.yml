@@ -1,5 +1,7 @@
 ---
-name: Flask Template
+name: Template Bash Script Editor
 category: Interactive Apps
 description: |-
-  Template Python application using Flask.
+  Simple web-based editor for bash script templates.
+  Select a template, fill in variables, and save the rendered script to your home
+  directory or another configured root path.
