@@ -34,14 +34,17 @@ jinja_env = Environment(loader=BaseLoader(), undefined=StrictUndefined)
 
 
 def is_subpath(path, parent):
-    """Return True if path is inside parent (or equal)."""
+    """Return True if path is inside parent (or equal), compatible with older Python."""
     path_real = os.path.realpath(path)
     parent_real = os.path.realpath(parent)
-    try:
-        common = os.path.commonpath([path_real, parent_real])
-    except ValueError:
-        return False
-    return common == parent_real
+
+    # Exact match is always allowed
+    if path_real == parent_real:
+        return True
+
+    # Ensure we only match on directory boundaries
+    parent_with_sep = parent_real.rstrip(os.sep) + os.sep
+    return path_real.startswith(parent_with_sep)
 
 
 def is_allowed_path(path):
@@ -154,18 +157,18 @@ def api_list_dir():
 
     entries = []
     try:
-        with os.scandir(path_real) as it:
-            for entry in it:
-                if entry.name.startswith("."):
-                    continue
-                entry_type = "dir" if entry.is_dir() else "file"
-                entries.append(
-                    {
-                        "name": entry.name,
-                        "path": entry.path,
-                        "type": entry_type,
-                    }
-                )
+        for name in os.listdir(path_real):
+            if name.startswith("."):
+                continue
+            entry_path = os.path.join(path_real, name)
+            entry_type = "dir" if os.path.isdir(entry_path) else "file"
+            entries.append(
+                {
+                    "name": name,
+                    "path": entry_path,
+                    "type": entry_type,
+                }
+            )
     except OSError:
         abort(500, description="Failed to list directory")
 
