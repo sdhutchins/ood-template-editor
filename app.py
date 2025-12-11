@@ -1,10 +1,20 @@
 from flask import Flask, render_template, jsonify, request, abort
 import os
 import re
+import logging
 
 from jinja2 import Environment, BaseLoader, StrictUndefined, TemplateError
 
 app = Flask(__name__)
+
+# Basic, light logging setup – logs go to stdout/stderr which Passenger captures.
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "script_templates")
@@ -31,6 +41,13 @@ if CONFIG_ROOT:
 ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
 
 jinja_env = Environment(loader=BaseLoader(), undefined=StrictUndefined)
+
+logger.info(
+    "Starting Template Bash Script Editor app; TEMPLATE_DIR=%s, HOME_DIR=%s, ROOTS=%s",
+    TEMPLATE_DIR,
+    HOME_DIR,
+    ALLOWED_ROOT_PATHS,
+)
 
 
 def is_subpath(path, parent):
@@ -75,12 +92,14 @@ def safe_filename(name):
 
 @app.route("/")
 def index():
+    logger.info("Serving index page from %s", TEMPLATE_DIR)
     return render_template("index.html")
 
 
 @app.route("/api/templates", methods=["GET"])
 def list_templates():
     """Return list of available bash script templates."""
+    logger.info("Listing templates in %s", TEMPLATE_DIR)
     templates = []
     if os.path.isdir(TEMPLATE_DIR):
         for entry in sorted(os.listdir(TEMPLATE_DIR)):
@@ -100,9 +119,11 @@ def list_templates():
 def get_template(name):
     """Return the content of a specific template and the variables in it."""
     if "/" in name or "\\" in name or ".." in name:
+        logger.warning("Rejected template name %r (invalid)", name)
         abort(400, description="Invalid template name")
 
     template_path = os.path.join(TEMPLATE_DIR, name)
+    logger.info("Loading template %s", template_path)
     if not os.path.isfile(template_path):
         abort(404, description="Template not found")
 
@@ -111,6 +132,7 @@ def get_template(name):
         with open(template_path, "r") as f:
             content = f.read()
     except OSError:
+        logger.exception("Failed to read template file %s", template_path)
         abort(500, description="Failed to read template")
 
     variables = extract_jinja_variables(content)
@@ -120,6 +142,7 @@ def get_template(name):
 @app.route("/api/roots", methods=["GET"])
 def get_roots():
     """Return the roots that can be used in the save dialog."""
+    logger.info("Returning configured roots")
     return jsonify({"roots": ROOTS})
 
 
@@ -135,14 +158,18 @@ def api_list_dir():
     if not path:
         # default to first root path
         if not ROOTS:
+            logger.error("No roots configured; cannot list directory")
             abort(500, description="No roots configured")
         path = ROOTS[0]["path"]
 
     path_real = os.path.realpath(path)
+    logger.info("Listing directory %s", path_real)
     if not is_allowed_path(path_real):
+        logger.warning("Rejected directory %s (not under allowed roots)", path_real)
         abort(400, description="Path is not under an allowed root")
 
     if not os.path.isdir(path_real):
+        logger.warning("Path %s is not a directory", path_real)
         abort(400, description="Path is not a directory")
 
     # Determine which root this directory belongs to so we can compute a parent
@@ -153,6 +180,7 @@ def api_list_dir():
             break
 
     if root_for_path is None:
+        logger.warning("No root found for path %s", path_real)
         abort(400, description="Path is not under a known root")
 
     entries = []
@@ -170,6 +198,7 @@ def api_list_dir():
                 }
             )
     except OSError:
+        logger.exception("Failed to list directory %s", path_real)
         abort(500, description="Failed to list directory")
 
     # Sort: directories first, then files, alphabetically
@@ -206,12 +235,15 @@ def api_render():
     variables = data.get("variables") or {}
 
     if not isinstance(variables, dict):
+        logger.warning("Invalid variables payload (not a dict): %r", variables)
         abort(400, description="variables must be an object")
 
     try:
         tmpl = jinja_env.from_string(template_text)
         rendered = tmpl.render(**variables)
+        logger.info("Rendered template preview successfully (len=%d)", len(rendered))
     except TemplateError as exc:
+        logger.exception("Template rendering error")
         abort(400, description="Template rendering error: %s" % exc)
 
     return jsonify({"rendered": rendered})
@@ -233,28 +265,34 @@ def api_save():
     content = data.get("content", "")
 
     if not directory or not filename:
+        logger.warning("Save request missing directory or filename: %r", data)
         abort(400, description="directory and filename are required")
 
     directory_real = os.path.realpath(directory)
     if not is_allowed_path(directory_real):
+        logger.warning("Rejected save directory %s (not under allowed roots)", directory_real)
         abort(400, description="Directory is not under an allowed root")
 
     if not safe_filename(filename):
+        logger.warning("Rejected filename %r (invalid or unsafe)", filename)
         abort(400, description="Invalid filename")
 
     try:
         if not os.path.isdir(directory_real):
             os.makedirs(directory_real)
     except OSError:
+        logger.exception("Failed to create directory %s", directory_real)
         abort(500, description="Failed to create directory")
 
     file_path = os.path.join(directory_real, filename)
+    logger.info("Saving script to %s", file_path)
 
     try:
         # Use default system encoding for compatibility with older Python
         with open(file_path, "w") as f:
             f.write(content)
     except OSError:
+        logger.exception("Failed to save file %s", file_path)
         abort(500, description="Failed to save file")
 
     return jsonify({"status": "ok", "path": file_path})
