@@ -146,6 +146,14 @@
     let roots = [];
     let saveModalInstance = null;
 
+    // Backend endpoint URLs (generated via Flask url_for so they work under Open OnDemand prefixes)
+    const API_TEMPLATES_URL = "{{ url_for('list_templates') }}";
+    const API_TEMPLATE_BASE_URL = "{{ url_for('get_template', name='') }}";
+    const API_ROOTS_URL = "{{ url_for('get_roots') }}";
+    const API_LIST_DIR_URL = "{{ url_for('api_list_dir') }}";
+    const API_RENDER_URL = "{{ url_for('api_render') }}";
+    const API_SAVE_URL = "{{ url_for('api_save') }}";
+
     function showError(message) {
       alert(message);
     }
@@ -171,7 +179,7 @@
 
     async function loadTemplates() {
       try {
-        const data = await fetchJson("/api/templates");
+        const data = await fetchJson(API_TEMPLATES_URL);
         const select = document.getElementById("templateSelect");
         select.innerHTML = "";
 
@@ -202,7 +210,8 @@
     async function loadTemplate(name) {
       if (!name) return;
       try {
-        const data = await fetchJson(`/api/template/${encodeURIComponent(name)}`);
+        const url = API_TEMPLATE_BASE_URL + encodeURIComponent(name);
+        const data = await fetchJson(url);
         currentTemplateName = data.name;
 
         const editor = document.getElementById("templateEditor");
@@ -280,7 +289,7 @@
       const variables = collectVariablesFromForm();
 
       try {
-        const data = await fetchJson("/api/render", {
+        const data = await fetchJson(API_RENDER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ template: templateText, variables }),
@@ -293,7 +302,7 @@
 
     async function loadRoots() {
       try {
-        const data = await fetchJson("/api/roots");
+        const data = await fetchJson(API_ROOTS_URL);
         roots = data.roots || [];
 
         const select = document.getElementById("rootSelect");
@@ -325,7 +334,7 @@
 
     async function listDirectory(path) {
       try {
-        const data = await fetchJson(`/api/list_dir?path=${encodeURIComponent(path)}`);
+        const data = await fetchJson(API_LIST_DIR_URL + "?path=" + encodeURIComponent(path));
         currentDirPath = data.path;
 
         document.getElementById("currentPath").textContent = data.path;
@@ -414,7 +423,7 @@
       }
 
       try {
-        const data = await fetchJson("/api/save", {
+        const data = await fetchJson(API_SAVE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
