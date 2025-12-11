@@ -70,8 +70,10 @@
         <div class="border rounded p-2 mb-2 flex-grow-1 overflow-auto" id="variablesContainer">
           <form id="variablesForm" class="row g-2"></form>
           <div id="noVarsHint" class="text-muted small mt-2">
-            No variables detected yet. Use <code>{% raw %}{{ variable_name }}{% endraw %}</code> in your template,
-            then click “Refresh from template text”.
+            No variables detected yet. If your template uses placeholders like
+            <code>{% raw %}{{ variable_name }}{% endraw %}</code>, click
+            <span class="fw-semibold">“Refresh from template text”</span> above to
+            detect them and show fillable fields here.
           </div>
         </div>
 
