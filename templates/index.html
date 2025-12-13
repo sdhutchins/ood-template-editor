@@ -17,34 +17,10 @@
     <script src="https://kit.fontawesome.com/a29b1dc819.js" crossorigin="anonymous"></script>
     <!-- CodeMirror for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/github-light.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/shell/shell.min.js"></script>
-    <style>
-        body {
-            height: 100vh;
-            overflow: hidden;
-        }
-        .editor-textarea {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 0.9rem;
-            white-space: pre;
-        }
-        .fill-height {
-            height: calc(100vh - 64px);
-        }
-        .CodeMirror {
-            height: 100%;
-            font-size: 0.9rem;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-        .editor-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-    </style>
+    <!-- Custom CSS for editor and syntax highlighting -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-light border-bottom" style="background-color: {{ navbar_color|default('#e3f2fd') }}" data-bs-theme="light">
@@ -485,7 +461,6 @@
       
       templateEditor = CodeMirror.fromTextArea(templateTextarea, {
         mode: "shell",
-        theme: "github-light",
         lineNumbers: true,
         lineWrapping: true,
         indentUnit: 2,
@@ -494,7 +469,6 @@
       
       previewEditor = CodeMirror.fromTextArea(previewTextarea, {
         mode: "shell",
-        theme: "github-light",
         lineNumbers: true,
         lineWrapping: true,
         readOnly: true,

@@ -1,0 +1,88 @@
+/* Custom syntax highlighting theme and editor styles */
+
+body {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.editor-textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.9rem;
+    white-space: pre;
+}
+
+.fill-height {
+    height: calc(100vh - 64px);
+}
+
+.CodeMirror {
+    height: 100%;
+    font-size: 0.9rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    background-color: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+}
+
+.editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Custom syntax highlighting theme matching the provided colors */
+.CodeMirror-cursor {
+    border-left: 1px solid rgb(0, 0, 0);
+}
+
+.CodeMirror-selected {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.CodeMirror-line::selection,
+.CodeMirror-line > span::selection,
+.CodeMirror-line > span > span::selection {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Comments - dark red rgb(136, 0, 0) */
+.cm-comment {
+    color: rgb(136, 0, 0);
+}
+
+/* Keywords/functions - blue rgb(0, 0, 136) */
+.cm-keyword,
+.cm-builtin {
+    color: rgb(0, 0, 136);
+}
+
+/* Function names/identifiers - purple rgb(102, 0, 102) */
+.cm-def,
+.cm-variable,
+.cm-variable-2 {
+    color: rgb(102, 0, 102);
+}
+
+/* Strings - green rgb(0, 136, 0) */
+.cm-string,
+.cm-string-2 {
+    color: rgb(0, 136, 0);
+}
+
+/* Default text - black */
+.cm-atom,
+.cm-number,
+.cm-property,
+.cm-operator {
+    color: rgb(0, 0, 0);
+}
+
+/* Line numbers */
+.CodeMirror-gutters {
+    background-color: rgb(255, 255, 255);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.CodeMirror-linenumber {
+    color: rgba(0, 0, 0, 0.5);
+}
