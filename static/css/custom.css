@@ -103,6 +103,7 @@ body {
 #variablesForm input {
     max-width: 100%;
     font-size: 0.875rem;
+    width: 100%;
 }
 
 #variablesForm .form-label {
@@ -112,6 +113,11 @@ body {
 
 #variablesForm .mb-1 {
     margin-bottom: 0.5rem !important;
+}
+
+#variablesForm .col-6 {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
 /* Line numbers */

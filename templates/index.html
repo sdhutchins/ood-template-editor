@@ -37,7 +37,7 @@
   <div class="container-fluid mt-2">
     <div class="row fill-height">
       <!-- Left: template selection and editor -->
-      <div class="col-md-6 d-flex flex-column">
+      <div class="col-md-6 d-flex flex-column border-end pe-3">
         <div class="d-flex align-items-center mb-2">
           <label for="templateSelect" class="me-2 fw-semibold">Template</label>
           <select id="templateSelect" class="form-select form-select-sm w-auto"></select>
@@ -57,7 +57,7 @@
       </div>
 
       <!-- Right: variable form + preview + save -->
-      <div class="col-md-6 d-flex flex-column">
+      <div class="col-md-6 d-flex flex-column ps-3">
         <div class="d-flex align-items-center mb-2">
           <span class="fw-semibold me-2">Template variables</span>
           <button id="refreshVarsBtn" class="btn btn-outline-secondary btn-sm">
@@ -245,9 +245,9 @@
 
       hint.style.display = "none";
 
-      for (const v of variables) {
+      variables.forEach((v, index) => {
         const col = document.createElement("div");
-        col.className = "col-12";
+        col.className = "col-6";
 
         const group = document.createElement("div");
         group.className = "mb-1";
@@ -263,13 +263,13 @@
         input.id = `var-${v}`;
         input.name = v;
         input.maxLength = "50";
-        input.style.maxWidth = "100%";
+        input.placeholder = "Leave empty for default";
 
         group.appendChild(label);
         group.appendChild(input);
         col.appendChild(group);
         form.appendChild(col);
-      }
+      });
     }
 
     function extractVarsFromTemplateText() {
@@ -291,7 +291,11 @@
       const inputs = form.querySelectorAll("input[name]");
       const vars = {};
       inputs.forEach((input) => {
-        vars[input.name] = input.value;
+        // Only include non-empty values - empty values will use Jinja2 defaults
+        const value = input.value.trim();
+        if (value) {
+          vars[input.name] = value;
+        }
       });
       return vars;
     }
