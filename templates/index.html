@@ -14,6 +14,11 @@
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"
     ></script>
+    <!-- CodeMirror for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/shell/shell.min.js"></script>
     <style>
         body {
             height: 100vh;
@@ -27,12 +32,26 @@
         .fill-height {
             height: calc(100vh - 64px);
         }
+        .CodeMirror {
+            height: 100%;
+            font-size: 0.9rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
     </style>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-light border-bottom" style="background-color: #e3f2fd" data-bs-theme="light">
     <div class="container-fluid">
       <a class="navbar-brand fw-semibold" href="#">Template Bash Script Editor</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="{{ url_for('settings_page') }}">Settings</a>
+      </div>
     </div>
   </nav>
 
@@ -48,7 +67,7 @@
           </button>
         </div>
 
-        <div class="flex-grow-1 d-flex flex-column">
+        <div class="flex-grow-1 d-flex flex-column editor-container">
           <label for="templateEditor" class="form-label fw-semibold">Template editor</label>
           <textarea
             id="templateEditor"
@@ -86,7 +105,7 @@
           </button>
         </div>
 
-        <div class="flex-grow-1 d-flex flex-column">
+        <div class="flex-grow-1 d-flex flex-column editor-container">
           <label for="previewEditor" class="form-label fw-semibold">Preview</label>
           <textarea
             id="previewEditor"
@@ -147,6 +166,8 @@
     let currentDirPath = null;
     let roots = [];
     let saveModalInstance = null;
+    let templateEditor = null;
+    let previewEditor = null;
 
     // Backend endpoint URLs (generated via Flask url_for so they work under Open OnDemand prefixes)
     const API_TEMPLATES_URL = "{{ url_for('list_templates') }}";
@@ -216,11 +237,18 @@
         const data = await fetchJson(url);
         currentTemplateName = data.name;
 
-        const editor = document.getElementById("templateEditor");
-        editor.value = data.content || "";
+        if (templateEditor) {
+          templateEditor.setValue(data.content || "");
+        } else {
+          document.getElementById("templateEditor").value = data.content || "";
+        }
 
         buildVarsForm(data.variables || []);
-        document.getElementById("previewEditor").value = "";
+        if (previewEditor) {
+          previewEditor.setValue("");
+        } else {
+          document.getElementById("previewEditor").value = "";
+        }
       } catch (err) {
         showError(err.message);
       }
@@ -264,7 +292,7 @@
     }
 
     function extractVarsFromTemplateText() {
-      const text = document.getElementById("templateEditor").value || "";
+      const text = templateEditor ? templateEditor.getValue() : document.getElementById("templateEditor").value || "";
       {% raw %}
       // Match {{ variable_name ... }} and capture only the first identifier.
       const pattern = /{{\s*([a-zA-Z_][a-zA-Z0-9_]*)[^}]*}}/g;
@@ -288,7 +316,7 @@
     }
 
     async function previewScript() {
-      const templateText = document.getElementById("templateEditor").value || "";
+      const templateText = templateEditor ? templateEditor.getValue() : document.getElementById("templateEditor").value || "";
       const variables = collectVariablesFromForm();
 
       try {
@@ -297,7 +325,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ template: templateText, variables }),
         });
-        document.getElementById("previewEditor").value = data.rendered || "";
+        if (previewEditor) {
+          previewEditor.setValue(data.rendered || "");
+        } else {
+          document.getElementById("previewEditor").value = data.rendered || "";
+        }
       } catch (err) {
         showError(err.message);
       }
@@ -415,8 +447,8 @@
         return;
       }
 
-      const content = document.getElementById("previewEditor").value ||
-                      document.getElementById("templateEditor").value ||
+      const content = (previewEditor ? previewEditor.getValue() : document.getElementById("previewEditor").value) ||
+                      (templateEditor ? templateEditor.getValue() : document.getElementById("templateEditor").value) ||
                       "";
 
       if (!currentDirPath) {
@@ -444,6 +476,41 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+      // Initialize CodeMirror editors for syntax highlighting
+      const templateTextarea = document.getElementById("templateEditor");
+      const previewTextarea = document.getElementById("previewEditor");
+      
+      templateEditor = CodeMirror.fromTextArea(templateTextarea, {
+        mode: "shell",
+        theme: "monokai",
+        lineNumbers: true,
+        lineWrapping: true,
+        indentUnit: 2,
+        tabSize: 2,
+      });
+      
+      previewEditor = CodeMirror.fromTextArea(previewTextarea, {
+        mode: "shell",
+        theme: "monokai",
+        lineNumbers: true,
+        lineWrapping: true,
+        readOnly: true,
+        indentUnit: 2,
+        tabSize: 2,
+      });
+      
+      // Make CodeMirror editors resize with container
+      const resizeEditors = () => {
+        if (templateEditor) {
+          templateEditor.refresh();
+        }
+        if (previewEditor) {
+          previewEditor.refresh();
+        }
+      };
+      window.addEventListener("resize", resizeEditors);
+      setTimeout(resizeEditors, 100);
+
       document.getElementById("templateSelect").addEventListener("change", (e) => {
         loadTemplate(e.target.value);
       });

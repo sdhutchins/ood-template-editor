@@ -1,12 +1,53 @@
+"""
+Template Bash Script Editor - Flask Application
+
+A simple web-based editor for bash script templates. Users can select templates,
+fill in variables, preview rendered scripts, and save them to configured directories.
+
+Structure follows Flask best practices:
+- Routes organized by functionality (pages, API endpoints)
+- Context processors for template variables
+- Error handlers for common HTTP errors
+- Settings management via JSON file
+"""
 from flask import Flask, render_template, jsonify, request, abort
 import os
 import re
+import json
 import logging
 from datetime import date
 
 from jinja2 import Environment, BaseLoader, StrictUndefined, TemplateError
 
-app = Flask(__name__)
+# Flask app initialization
+# Use instance folder for user-specific configuration (Flask best practice)
+# Instance folder stores user-specific data that shouldn't be in version control
+app = Flask(__name__, instance_relative_config=True)
+
+# ============================================================================
+# Configuration and Paths
+# ============================================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "script_templates")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+
+# Instance folder for user-specific settings (Flask best practice)
+# Defaults to 'instance' folder in app directory if not set via INSTANCE_PATH
+INSTANCE_DIR = app.instance_path
+if INSTANCE_DIR is None:
+    # Fallback: create instance folder in app directory
+    INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+    try:
+        os.makedirs(INSTANCE_DIR, exist_ok=True)
+    except OSError:
+        pass
+
+SETTINGS_FILE = os.path.join(INSTANCE_DIR, "settings.json")
+
+# ============================================================================
+# Logging Setup
+# ============================================================================
 
 # Basic, light logging setup – logs go to stdout/stderr which Passenger captures.
 if not logging.getLogger().handlers:
@@ -17,11 +58,7 @@ if not logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_DIR = os.path.join(BASE_DIR, "script_templates")
-
 # File logging to logs/app-YYYY-MM-DD.log (a new file for each day the app starts)
-LOG_DIR = os.path.join(BASE_DIR, "logs")
 try:
     if not os.path.isdir(LOG_DIR):
         os.makedirs(LOG_DIR)
@@ -36,35 +73,96 @@ except Exception:
     # If file logging fails for any reason, continue with stdout/stderr logging only.
     logger.warning("File logging could not be initialized; continuing without app-YYYY-MM-DD.log")
 
-# Roots that are available in the "Save to..." dialog:
-# - The user's home directory
-# - Optionally, another root directory specified via TEMPLATE_EDITOR_ROOT
-HOME_DIR = os.path.expanduser("~")
-CONFIG_ROOT = os.environ.get("TEMPLATE_EDITOR_ROOT")
+# ============================================================================
+# Settings Management
+# ============================================================================
 
-ROOTS = [
-    {"id": "home", "label": "Home directory", "path": os.path.realpath(HOME_DIR)},
-]
 
-if CONFIG_ROOT:
-    ROOTS.append(
-        {
-            "id": "configured",
-            "label": "Configured root",
-            "path": os.path.realpath(CONFIG_ROOT),
-        }
-    )
+def load_settings():
+    """
+    Load user settings from instance folder (Flask best practice).
+    
+    Returns dict with default values if file doesn't exist or can't be read.
+    Uses JSON format (Python standard library, no extra dependencies).
+    """
+    defaults = {
+        "additional_root": "",
+        "navbar_color": "#e3f2fd",
+    }
+    if os.path.isfile(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+                # Merge with defaults to ensure all keys exist
+                defaults.update(settings)
+        except (OSError, ValueError) as e:
+            logger.warning("Failed to load settings file: %s", e)
+    return defaults
 
+
+def save_settings(settings):
+    """
+    Save user settings to instance folder (Flask best practice).
+    
+    Returns True on success, False on failure.
+    """
+    try:
+        # Ensure instance directory exists
+        os.makedirs(INSTANCE_DIR, exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        return True
+    except OSError as e:
+        logger.exception("Failed to save settings file: %s", e)
+        return False
+
+
+def get_roots():
+    """Get list of allowed root directories from settings and environment."""
+    HOME_DIR = os.path.expanduser("~")
+    roots = [{"id": "home", "label": "Home directory", "path": os.path.realpath(HOME_DIR)}]
+    
+    # Check environment variable first (for backward compatibility)
+    env_root = os.environ.get("TEMPLATE_EDITOR_ROOT")
+    if env_root and os.path.isdir(env_root):
+        roots.append({
+            "id": "env_root",
+            "label": "Environment root",
+            "path": os.path.realpath(env_root),
+        })
+    
+    # Check settings file
+    settings = load_settings()
+    additional_root = settings.get("additional_root", "").strip()
+    if additional_root and os.path.isdir(additional_root):
+        roots.append({
+            "id": "settings_root",
+            "label": "Settings root",
+            "path": os.path.realpath(additional_root),
+        })
+    
+    return roots
+
+# ============================================================================
+# Application Initialization
+# ============================================================================
+
+# Initialize roots and allowed paths
+ROOTS = get_roots()
 ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
 
+# Jinja2 environment for template rendering (separate from Flask's template engine)
 jinja_env = Environment(loader=BaseLoader(), undefined=StrictUndefined)
 
 logger.info(
-    "Starting Template Bash Script Editor app; TEMPLATE_DIR=%s, HOME_DIR=%s, ROOTS=%s",
+    "Starting Template Bash Script Editor app; TEMPLATE_DIR=%s, ROOTS=%s",
     TEMPLATE_DIR,
-    HOME_DIR,
     ALLOWED_ROOT_PATHS,
 )
+
+# ============================================================================
+# Utility Functions
+# ============================================================================
 
 
 def is_subpath(path, parent):
@@ -110,10 +208,31 @@ def safe_filename(name):
     return True
 
 
+@app.context_processor
+def inject_template_vars():
+    """Inject variables available to all templates."""
+    settings = load_settings()
+    return {
+        "navbar_color": settings.get("navbar_color", "#e3f2fd"),
+    }
+
+
 @app.route("/")
 def index():
+    """Serve the main template editor page."""
     logger.info("Serving index page from %s", TEMPLATE_DIR)
     return render_template("index.html")
+
+
+@app.route("/settings")
+def settings_page():
+    """Serve the settings page."""
+    logger.info("Serving settings page")
+    return render_template("settings.html")
+
+# ============================================================================
+# Routes - API Endpoints
+# ============================================================================
 
 
 @app.route("/api/templates", methods=["GET"])
@@ -148,8 +267,8 @@ def get_template(name):
         abort(404, description="Template not found")
 
     try:
-        # Use default system encoding for compatibility with older Python
-        with open(template_path, "r") as f:
+        # Explicit UTF-8 encoding (Python 3 best practice)
+        with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
     except OSError:
         logger.exception("Failed to read template file %s", template_path)
@@ -160,10 +279,54 @@ def get_template(name):
 
 
 @app.route("/api/roots", methods=["GET"])
-def get_roots():
+def api_get_roots():
     """Return the roots that can be used in the save dialog."""
+    # Refresh roots from settings in case they changed
+    global ROOTS, ALLOWED_ROOT_PATHS
+    ROOTS = get_roots()
+    ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
     logger.info("Returning configured roots")
     return jsonify({"roots": ROOTS})
+
+
+@app.route("/api/settings", methods=["GET"])
+def api_get_settings():
+    """Return current settings."""
+    settings = load_settings()
+    return jsonify(settings)
+
+
+@app.route("/api/settings", methods=["POST"])
+def api_save_settings():
+    """Save settings."""
+    data = request.get_json(silent=True) or {}
+    additional_root = data.get("additional_root", "").strip()
+    navbar_color = data.get("navbar_color", "#e3f2fd").strip()
+    
+    # Validate the path if provided
+    if additional_root:
+        if not os.path.isdir(additional_root):
+            abort(400, description="Path is not a valid directory")
+        # Normalize the path
+        additional_root = os.path.realpath(additional_root)
+    
+    # Validate navbar color (basic hex color validation)
+    if navbar_color and not navbar_color.startswith("#"):
+        navbar_color = "#" + navbar_color
+    
+    settings = {
+        "additional_root": additional_root,
+        "navbar_color": navbar_color,
+    }
+    if save_settings(settings):
+        # Refresh roots
+        global ROOTS, ALLOWED_ROOT_PATHS
+        ROOTS = get_roots()
+        ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
+        logger.info("Settings saved; additional_root=%s, navbar_color=%s", additional_root, navbar_color)
+        return jsonify({"status": "ok", "settings": settings})
+    else:
+        abort(500, description="Failed to save settings")
 
 
 @app.route("/api/list_dir", methods=["GET"])
@@ -308,8 +471,8 @@ def api_save():
     logger.info("Saving script to %s", file_path)
 
     try:
-        # Use default system encoding for compatibility with older Python
-        with open(file_path, "w") as f:
+        # Explicit UTF-8 encoding (Python 3 best practice)
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
     except OSError:
         logger.exception("Failed to save file %s", file_path)
@@ -317,6 +480,37 @@ def api_save():
 
     return jsonify({"status": "ok", "path": file_path})
 
+# ============================================================================
+# Error Handlers
+# ============================================================================
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    logger.warning("404 error: %s", error)
+    # Return JSON for API endpoints, redirect to index for page endpoints
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    # For non-API routes, redirect to index
+    from flask import redirect, url_for
+    return redirect(url_for("index")), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    logger.exception("500 error: %s", error)
+    # Return JSON for API endpoints, simple message for page endpoints
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Internal server error"}), 500
+    # For non-API routes, return a simple error message
+    return "<h1>Internal Server Error</h1><p>An error occurred. Please check the logs.</p>", 500
+
+
+# ============================================================================
+# Application Entry Point
+# ============================================================================
 
 if __name__ == "__main__":
     app.run(debug=True)
