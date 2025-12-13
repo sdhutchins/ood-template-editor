@@ -7,15 +7,21 @@
 <h3 class="pb-2 mb-4 border-bottom">Settings</h3>
 <p class="mb-4 text-muted">Configure additional root directory for saving scripts.</p>
 
-<form id="settingsForm" class="mt-3">
+<form id="settingsForm" class="mt-3"
+      data-settings-url="{{ url_for('api_get_settings') }}"
+      data-save-settings-url="{{ url_for('api_save_settings') }}"
+      data-index-url="{{ url_for('index') }}">
   <div class="card mb-4 shadow-sm" style="border-radius: 10px;">
     <div class="card-body">
       <label for="navbar_color" class="form-label fw-semibold">Navbar Color</label>
-      <input type="color" class="form-control form-control-color mb-2" id="navbar_color" name="navbar_color"
-             value="#e3f2fd" title="Choose navbar color">
+      <select class="form-select mb-2" id="navbar_color" name="navbar_color">
+        {% for color_value, color_label in allowed_nav_colors %}
+        <option value="{{ color_value }}" {% if navbar_color == color_value %}selected{% endif %}>{{ color_label }}</option>
+        {% endfor %}
+      </select>
       <div class="form-text">Choose the color for the navigation bar.</div>
       <div class="mt-2">
-        <span class="badge rounded-pill text-dark" id="navbar_color_preview" style="background-color: #e3f2fd;">Preview</span>
+        <span class="badge rounded-pill text-dark" id="navbar_color_preview" style="background-color: {{ navbar_color }};">Preview</span>
       </div>
     </div>
   </div>
@@ -39,116 +45,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-  const API_SETTINGS_URL = "{{ url_for('api_get_settings') }}";
-  const API_SAVE_SETTINGS_URL = "{{ url_for('api_save_settings') }}";
-
-  async function fetchJson(url, options) {
-    const response = await fetch(url, options || {});
-    if (!response.ok) {
-      let msg = "Request failed";
-      try {
-        const data = await response.json();
-        if (data && data.description) {
-          msg = data.description;
-        } else if (data && data.error) {
-          msg = data.error;
-        }
-      } catch (e) {
-        // ignore parse error, fall back to default message
-      }
-      throw new Error(msg);
-    }
-    return response.json();
-  }
-
-  async function loadSettings() {
-    try {
-      const data = await fetchJson(API_SETTINGS_URL);
-      document.getElementById("additional_root").value = data.additional_root || "";
-      const navbarColor = data.navbar_color || "#e3f2fd";
-      document.getElementById("navbar_color").value = navbarColor;
-      document.getElementById("navbar_color_preview").style.backgroundColor = navbarColor;
-    } catch (err) {
-      showError("Failed to load settings: " + err.message);
-    }
-  }
-
-  function showError(message) {
-    const errorEl = document.getElementById("settingsError");
-    errorEl.textContent = message;
-    errorEl.style.display = "block";
-    document.getElementById("settingsSuccess").style.display = "none";
-  }
-
-  function showSuccess(message) {
-    const successEl = document.getElementById("settingsSuccess");
-    successEl.textContent = message;
-    successEl.style.display = "block";
-    document.getElementById("settingsError").style.display = "none";
-  }
-
-  function validatePath(path) {
-    const validationEl = document.getElementById("pathValidation");
-    if (!path || path.trim() === "") {
-      validationEl.style.display = "none";
-      return true;
-    }
-    
-    // Basic validation - check if it looks like an absolute path
-    if (!path.startsWith("/")) {
-      validationEl.innerHTML = '<small class="text-warning">⚠ Path should be absolute (start with /)</small>';
-      validationEl.style.display = "block";
-      return false;
-    }
-    
-    validationEl.innerHTML = '<small class="text-muted">✓ Path format looks valid</small>';
-    validationEl.style.display = "block";
-    return true;
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    loadSettings();
-
-    const pathInput = document.getElementById("additional_root");
-    pathInput.addEventListener("input", () => {
-      validatePath(pathInput.value);
-    });
-
-    const navbarColorInput = document.getElementById("navbar_color");
-    navbarColorInput.addEventListener("change", function() {
-      const color = this.value;
-      document.getElementById("navbar_color_preview").style.backgroundColor = color;
-    });
-
-    document.getElementById("settingsForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      
-      const additionalRoot = pathInput.value.trim();
-      const navbarColor = navbarColorInput.value.trim();
-      
-      if (!validatePath(additionalRoot)) {
-        return;
-      }
-
-      try {
-        const data = await fetchJson(API_SAVE_SETTINGS_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            additional_root: additionalRoot,
-            navbar_color: navbarColor,
-          }),
-        });
-        showSuccess("Settings saved successfully!");
-        // Redirect to editor after a short delay
-        setTimeout(() => {
-          window.location.href = "{{ url_for('index') }}";
-        }, 1000);
-      } catch (err) {
-        showError("Failed to save settings: " + err.message);
-      }
-    });
-  });
-</script>
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 {% endblock %}

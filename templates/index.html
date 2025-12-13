@@ -65,12 +65,12 @@
           </button>
         </div>
 
-        <div class="border rounded p-2 mb-2 flex-grow-1 overflow-auto" id="variablesContainer">
+        <div class="border rounded p-2 mb-2 overflow-auto" id="variablesContainer" style="max-height: 180px;">
           <form id="variablesForm" class="row g-2"></form>
           <div id="noVarsHint" class="text-muted small mt-2">
             No variables detected yet. If your template uses placeholders like
             <code>{% raw %}{{ variable_name }}{% endraw %}</code>, click
-            <span class="fw-semibold">“Refresh from template text”</span> above to
+            <span class="fw-semibold">"Refresh from template text"</span> above to
             detect them and show fillable fields here.
           </div>
         </div>
@@ -84,7 +84,7 @@
           </button>
         </div>
 
-        <div class="flex-grow-1 d-flex flex-column editor-container">
+        <div class="flex-grow-1 d-flex flex-column editor-container" style="min-height: 300px;">
           <label for="previewEditor" class="form-label fw-semibold">Preview</label>
           <textarea
             id="previewEditor"
@@ -262,6 +262,8 @@
         input.className = "form-control form-control-sm";
         input.id = `var-${v}`;
         input.name = v;
+        input.maxLength = "50";
+        input.style.maxWidth = "100%";
 
         group.appendChild(label);
         group.appendChild(input);
@@ -460,20 +462,22 @@
       const previewTextarea = document.getElementById("previewEditor");
       
       templateEditor = CodeMirror.fromTextArea(templateTextarea, {
-        mode: "shell",
+        mode: { name: "shell", path: "shell" },
         lineNumbers: true,
         lineWrapping: true,
         indentUnit: 2,
         tabSize: 2,
+        theme: "default",
       });
       
       previewEditor = CodeMirror.fromTextArea(previewTextarea, {
-        mode: "shell",
+        mode: { name: "shell", path: "shell" },
         lineNumbers: true,
         lineWrapping: true,
         readOnly: true,
         indentUnit: 2,
         tabSize: 2,
+        theme: "default",
       });
       
       // Make CodeMirror editors resize with container

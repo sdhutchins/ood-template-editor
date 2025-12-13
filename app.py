@@ -147,6 +147,15 @@ def get_roots():
 # Application Initialization
 # ============================================================================
 
+# Whitelisted light navbar colors (value, label)
+ALLOWED_NAV_COLORS = [
+    ("#e8f5e9", "Mint"),
+    ("#e3f2fd", "Light Blue"),
+    ("#ffeef3", "Rose Tint"),
+    ("#f1f3f5", "Light Gray"),
+    ("#ede7f6", "Lavender"),
+]
+
 # Initialize roots and allowed paths
 ROOTS = get_roots()
 ALLOWED_ROOT_PATHS = [root["path"] for root in ROOTS]
@@ -212,8 +221,14 @@ def safe_filename(name):
 def inject_template_vars():
     """Inject variables available to all templates."""
     settings = load_settings()
+    navbar_color = settings.get("navbar_color", "#e3f2fd")
+    # Validate navbar color is in allowed list
+    allowed_values = [color[0] for color in ALLOWED_NAV_COLORS]
+    if navbar_color not in allowed_values:
+        navbar_color = allowed_values[0]
     return {
-        "navbar_color": settings.get("navbar_color", "#e3f2fd"),
+        "navbar_color": navbar_color,
+        "allowed_nav_colors": ALLOWED_NAV_COLORS,
     }
 
 
@@ -310,9 +325,12 @@ def api_save_settings():
         # Normalize the path
         additional_root = os.path.realpath(additional_root)
     
-    # Validate navbar color (basic hex color validation)
-    if navbar_color and not navbar_color.startswith("#"):
-        navbar_color = "#" + navbar_color
+    # Validate navbar color is in allowed list
+    allowed_values = [color[0] for color in ALLOWED_NAV_COLORS]
+    if navbar_color not in allowed_values:
+        # Default to first allowed color if invalid
+        logger.warning("Invalid navbar_color '%s', defaulting to '%s'", navbar_color, allowed_values[0])
+        navbar_color = allowed_values[0]
     
     settings = {
         "additional_root": additional_root,

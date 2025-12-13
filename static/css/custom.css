@@ -77,6 +77,43 @@ body {
     color: rgb(0, 0, 0);
 }
 
+/* Shell-specific syntax highlighting */
+.cm-meta {
+    color: rgb(0, 0, 136); /* Blue for #SBATCH directives */
+}
+
+.cm-qualifier {
+    color: rgb(0, 0, 136); /* Blue for command options like --job-name */
+}
+
+.cm-variable-3 {
+    color: rgb(102, 0, 102); /* Purple for environment variables like $SLURM_JOB_NAME */
+}
+
+.cm-bracket {
+    color: rgb(0, 0, 0);
+}
+
+/* Variables section styling - smaller inputs */
+#variablesContainer {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#variablesForm input {
+    max-width: 100%;
+    font-size: 0.875rem;
+}
+
+#variablesForm .form-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+#variablesForm .mb-1 {
+    margin-bottom: 0.5rem !important;
+}
+
 /* Line numbers */
 .CodeMirror-gutters {
     background-color: rgb(255, 255, 255);
