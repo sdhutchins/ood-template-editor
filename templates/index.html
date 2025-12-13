@@ -76,10 +76,10 @@
         </div>
 
         <div class="mb-2">
-          <button id="previewBtn" class="btn btn-primary me-2">
+          <button id="previewBtn" class="btn btn-primary btn-sm me-2">
             Preview filled script
           </button>
-          <button id="saveBtn" class="btn btn-success">
+          <button id="saveBtn" class="btn btn-success btn-sm">
             Save to file…
           </button>
         </div>
@@ -222,7 +222,10 @@
           document.getElementById("templateEditor").value = data.content || "";
         }
 
-        buildVarsForm(data.variables || []);
+        // Extract defaults from template content if available
+        const templateText = data.content || "";
+        const defaults = extractDefaultsFromTemplate(templateText);
+        buildVarsForm(data.variables || [], defaults);
         if (previewEditor) {
           previewEditor.setValue("");
         } else {
@@ -233,7 +236,7 @@
       }
     }
 
-    function buildVarsForm(variables) {
+    function buildVarsForm(variables, defaults) {
       const form = document.getElementById("variablesForm");
       const hint = document.getElementById("noVarsHint");
       form.innerHTML = "";
@@ -244,6 +247,7 @@
       }
 
       hint.style.display = "none";
+      defaults = defaults || {};
 
       variables.forEach((v, index) => {
         const col = document.createElement("div");
@@ -263,7 +267,15 @@
         input.id = `var-${v}`;
         input.name = v;
         input.maxLength = "50";
-        input.placeholder = "Leave empty for default";
+        
+        // Show default value if available
+        const defaultValue = defaults[v];
+        if (defaultValue) {
+          input.placeholder = `Default: ${defaultValue}`;
+          input.value = defaultValue;
+        } else {
+          input.placeholder = "Leave empty for default";
+        }
 
         group.appendChild(label);
         group.appendChild(input);
@@ -272,10 +284,26 @@
       });
     }
 
+    function extractDefaultsFromTemplate(templateText) {
+      {% raw %}
+      // Match {{ variable_name | default('value') }} or {{ variable_name | default("value") }}
+      // Handles both single and double quotes, with optional whitespace
+      const pattern = /{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*[^}]*\|\s*default\s*\(\s*['"]([^'"]*)['"]\s*\)[^}]*}}/g;
+      {% endraw %}
+      const defaults = {};
+      let match;
+      while ((match = pattern.exec(templateText)) !== null) {
+        defaults[match[1]] = match[2];
+      }
+      return defaults;
+    }
+
     function extractVarsFromTemplateText() {
       const text = templateEditor ? templateEditor.getValue() : document.getElementById("templateEditor").value || "";
+      const defaults = extractDefaultsFromTemplate(text);
+      
       {% raw %}
-      // Match {{ variable_name ... }} and capture only the first identifier.
+      // Match all {{ variable_name ... }} patterns
       const pattern = /{{\s*([a-zA-Z_][a-zA-Z0-9_]*)[^}]*}}/g;
       {% endraw %}
       const varsSet = new Set();
@@ -283,7 +311,8 @@
       while ((match = pattern.exec(text)) !== null) {
         varsSet.add(match[1]);
       }
-      buildVarsForm(Array.from(varsSet).sort());
+      
+      buildVarsForm(Array.from(varsSet).sort(), defaults);
     }
 
     function collectVariablesFromForm() {
