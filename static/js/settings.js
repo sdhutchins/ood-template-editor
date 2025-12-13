@@ -34,6 +34,7 @@ async function loadSettings() {
   try {
     const data = await fetchJson(urls.settingsUrl);
     document.getElementById("additional_root").value = data.additional_root || "";
+    document.getElementById("additional_root_label").value = data.additional_root_label || "";
     const navbarColor = data.navbar_color || "#e3f2fd";
     document.getElementById("navbar_color").value = navbarColor;
     document.getElementById("navbar_color_preview").style.backgroundColor = navbarColor;
@@ -93,6 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     
     const additionalRoot = pathInput.value.trim();
+    const additionalRootLabel = document.getElementById("additional_root_label").value.trim();
     const navbarColor = navbarColorInput.value.trim();
     
     if (!validatePath(additionalRoot)) {
@@ -106,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           additional_root: additionalRoot,
+          additional_root_label: additionalRootLabel,
           navbar_color: navbarColor,
         }),
       });

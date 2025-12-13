@@ -87,6 +87,7 @@ def load_settings():
     """
     defaults = {
         "additional_root": "",
+        "additional_root_label": "",
         "navbar_color": "#e3f2fd",
     }
     if os.path.isfile(SETTINGS_FILE):
@@ -135,9 +136,14 @@ def get_roots():
     settings = load_settings()
     additional_root = settings.get("additional_root", "").strip()
     if additional_root and os.path.isdir(additional_root):
+        # Use custom label if provided, otherwise generate a default
+        custom_label = settings.get("additional_root_label", "").strip()
+        if not custom_label:
+            # Default label based on the directory name
+            custom_label = os.path.basename(additional_root.rstrip(os.sep)) or "Additional root"
         roots.append({
             "id": "settings_root",
-            "label": "Settings root",
+            "label": custom_label,
             "path": os.path.realpath(additional_root),
         })
     
@@ -316,6 +322,7 @@ def api_save_settings():
     """Save settings."""
     data = request.get_json(silent=True) or {}
     additional_root = data.get("additional_root", "").strip()
+    additional_root_label = data.get("additional_root_label", "").strip()
     navbar_color = data.get("navbar_color", "#e3f2fd").strip()
     
     # Validate the path if provided
@@ -334,6 +341,7 @@ def api_save_settings():
     
     settings = {
         "additional_root": additional_root,
+        "additional_root_label": additional_root_label,
         "navbar_color": navbar_color,
     }
     if save_settings(settings):
