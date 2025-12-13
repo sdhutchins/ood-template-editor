@@ -471,8 +471,8 @@ def api_save():
 
     directory_real = os.path.realpath(directory)
     if not is_allowed_path(directory_real):
-        logger.warning("Rejected save directory %s (not under allowed roots)", directory_real)
-        abort(400, description="Directory is not under an allowed root")
+        logger.warning("Rejected save directory %s (not under allowed roots: %s)", directory_real, ALLOWED_ROOT_PATHS)
+        abort(400, description="Directory is not under an allowed root. Add it via Settings > Additional Root Directory.")
 
     if not safe_filename(filename):
         logger.warning("Rejected filename %r (invalid or unsafe)", filename)

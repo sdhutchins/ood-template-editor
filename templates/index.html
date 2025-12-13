@@ -455,7 +455,13 @@
         successEl.textContent = "Saved to " + data.path;
         successEl.style.display = "block";
       } catch (err) {
-        errorEl.textContent = err.message;
+        let errorMsg = err.message;
+        // Provide helpful guidance for directory access errors
+        if (errorMsg.includes("not under an allowed root") || errorMsg.includes("Directory is not under")) {
+          errorMsg = "This directory is not in your allowed roots. " +
+                     "Go to Settings to add an additional root directory that contains this path.";
+        }
+        errorEl.textContent = errorMsg;
         errorEl.style.display = "block";
       }
     }
