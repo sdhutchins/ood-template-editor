@@ -14,9 +14,10 @@
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"
     ></script>
+    <script src="https://kit.fontawesome.com/a29b1dc819.js" crossorigin="anonymous"></script>
     <!-- CodeMirror for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/github-light.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/shell/shell.min.js"></script>
     <style>
@@ -46,11 +47,13 @@
     </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-light border-bottom" style="background-color: #e3f2fd" data-bs-theme="light">
+  <nav class="navbar navbar-expand-lg navbar-light border-bottom" style="background-color: {{ navbar_color|default('#e3f2fd') }}" data-bs-theme="light">
     <div class="container-fluid">
       <a class="navbar-brand fw-semibold" href="#">Template Bash Script Editor</a>
       <div class="navbar-nav ms-auto">
-        <a class="nav-link" href="{{ url_for('settings_page') }}">Settings</a>
+        <a class="nav-link d-flex align-items-center" href="{{ url_for('settings_page') }}" aria-label="Settings">
+          <i class="fa-solid fa-gear me-1" aria-hidden="true"></i> Settings
+        </a>
       </div>
     </div>
   </nav>
@@ -482,7 +485,7 @@
       
       templateEditor = CodeMirror.fromTextArea(templateTextarea, {
         mode: "shell",
-        theme: "monokai",
+        theme: "github-light",
         lineNumbers: true,
         lineWrapping: true,
         indentUnit: 2,
@@ -491,7 +494,7 @@
       
       previewEditor = CodeMirror.fromTextArea(previewTextarea, {
         mode: "shell",
-        theme: "monokai",
+        theme: "github-light",
         lineNumbers: true,
         lineWrapping: true,
         readOnly: true,
