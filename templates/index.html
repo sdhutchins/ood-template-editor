@@ -37,16 +37,40 @@
   <div class="container-fluid mt-2">
     <div class="row fill-height">
       <!-- Left: template selection and editor -->
-      <div class="col-md-6 d-flex flex-column border-end pe-3">
+      <div class="col-md-6 d-flex flex-column border-end pe-3 editor-column">
         <div class="d-flex align-items-center mb-2">
           <label for="templateSelect" class="me-2 fw-semibold">Template</label>
           <select id="templateSelect" class="form-select form-select-sm w-auto"></select>
           <button id="reloadTemplateBtn" class="btn btn-outline-secondary btn-sm ms-2">
             Reload
           </button>
+          <div class="form-check form-switch ms-auto mb-0">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              role="switch"
+              id="githubThemeToggle"
+            >
+            <label class="form-check-label small" for="githubThemeToggle">GitHub theme</label>
+          </div>
         </div>
 
-        <div class="flex-grow-1 d-flex flex-column editor-container">
+        <dl class="template-meta small text-muted border rounded px-2 py-1 mb-2">
+          <div>
+            <dt>Selected</dt>
+            <dd id="selectedTemplateName">None</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd id="selectedTemplateSource">None</dd>
+          </div>
+          <div>
+            <dt>Type</dt>
+            <dd id="selectedTemplateType">None</dd>
+          </div>
+        </dl>
+
+        <div class="flex-grow-1 d-flex flex-column editor-container template-editor-container">
           <label for="templateEditor" class="form-label fw-semibold">Template editor</label>
           <textarea
             id="templateEditor"
@@ -57,7 +81,7 @@
       </div>
 
       <!-- Right: variable form + preview + save -->
-      <div class="col-md-6 d-flex flex-column ps-3">
+      <div class="col-md-6 d-flex flex-column ps-3 editor-column">
         <div class="d-flex align-items-center mb-2">
           <span class="fw-semibold me-2">Template variables</span>
           <button id="refreshVarsBtn" class="btn btn-outline-secondary btn-sm">
@@ -77,14 +101,15 @@
 
         <div class="mb-2">
           <button id="previewBtn" class="btn btn-primary btn-sm me-2">
-            Preview filled script
+            Generate preview
           </button>
-          <button id="saveBtn" class="btn btn-success btn-sm">
+          <button id="saveBtn" class="btn btn-success btn-sm" disabled>
             Save to file…
           </button>
+          <span id="previewStatus" class="small text-muted ms-2">No preview yet</span>
         </div>
 
-        <div class="flex-grow-1 d-flex flex-column editor-container" style="min-height: 300px;">
+        <div class="flex-grow-1 d-flex flex-column editor-container preview-editor-container">
           <label for="previewEditor" class="form-label fw-semibold">Preview</label>
           <textarea
             id="previewEditor"
@@ -141,7 +166,9 @@
   </div>
 
   <script>
+    let currentTemplateId = null;
     let currentTemplateName = null;
+    let hasFreshPreview = false;
     let currentDirPath = null;
     let roots = [];
     let saveModalInstance = null;
@@ -155,9 +182,56 @@
     const API_LIST_DIR_URL = "{{ url_for('api_list_dir') }}";
     const API_RENDER_URL = "{{ url_for('api_render') }}";
     const API_SAVE_URL = "{{ url_for('api_save') }}";
+    const THEME_STORAGE_KEY = "ood-template-editor-theme";
 
     function showError(message) {
       alert(message);
+    }
+
+    function setPreviewState(state) {
+      const saveBtn = document.getElementById("saveBtn");
+      const previewStatus = document.getElementById("previewStatus");
+
+      if (state === "fresh") {
+        hasFreshPreview = true;
+        saveBtn.disabled = false;
+        previewStatus.textContent = "Preview ready";
+        previewStatus.className = "small text-success ms-2";
+        return;
+      }
+
+      hasFreshPreview = false;
+      saveBtn.disabled = true;
+      if (state === "stale") {
+        previewStatus.textContent = "Preview is stale";
+        previewStatus.className = "small text-warning ms-2";
+      } else {
+        previewStatus.textContent = "No preview yet";
+        previewStatus.className = "small text-muted ms-2";
+      }
+    }
+
+    function updateTemplateMeta(data) {
+      document.getElementById("selectedTemplateName").textContent = data.name || "None";
+      document.getElementById("selectedTemplateSource").textContent = data.source_path || "None";
+      document.getElementById("selectedTemplateType").textContent = data.type || "None";
+    }
+
+    function markPreviewStale() {
+      if (currentTemplateId) {
+        setPreviewState("stale");
+      }
+    }
+
+    function applyEditorTheme(useGithubTheme) {
+      const theme = useGithubTheme ? "github-light" : "default";
+      if (templateEditor) {
+        templateEditor.setOption("theme", theme);
+      }
+      if (previewEditor) {
+        previewEditor.setOption("theme", theme);
+      }
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
 
     async function fetchJson(url, options) {
@@ -202,8 +276,8 @@
         }
 
         // Automatically load the first template
-        currentTemplateName = select.value;
-        await loadTemplate(currentTemplateName);
+        currentTemplateId = select.value;
+        await loadTemplate(currentTemplateId);
       } catch (err) {
         showError(err.message);
       }
@@ -214,7 +288,9 @@
       try {
         const url = API_TEMPLATE_BASE_URL + encodeURIComponent(name);
         const data = await fetchJson(url);
+        currentTemplateId = data.id;
         currentTemplateName = data.name;
+        updateTemplateMeta(data);
 
         if (templateEditor) {
           templateEditor.setValue(data.content || "");
@@ -231,6 +307,7 @@
         } else {
           document.getElementById("previewEditor").value = "";
         }
+        setPreviewState("empty");
       } catch (err) {
         showError(err.message);
       }
@@ -313,6 +390,7 @@
       }
       
       buildVarsForm(Array.from(varsSet).sort(), defaults);
+      markPreviewStale();
     }
 
     function collectVariablesFromForm() {
@@ -344,6 +422,7 @@
         } else {
           document.getElementById("previewEditor").value = data.rendered || "";
         }
+        setPreviewState("fresh");
       } catch (err) {
         showError(err.message);
       }
@@ -429,14 +508,18 @@
     }
 
     function openSaveModal() {
+      if (!hasFreshPreview) {
+        showError("Generate a fresh preview before saving.");
+        return;
+      }
       document.getElementById("saveError").style.display = "none";
       document.getElementById("saveSuccess").style.display = "none";
       const filenameInput = document.getElementById("filenameInput");
 
       // Suggest a name based on template or default
       if (currentTemplateName) {
-        let base = currentTemplateName.replace(/\.sh(\.j2)?$/, "");
-        filenameInput.value = base + ".sh";
+        let base = currentTemplateName.replace(/\.j2$/, "");
+        filenameInput.value = base;
       } else {
         filenameInput.value = "script.sh";
       }
@@ -461,9 +544,7 @@
         return;
       }
 
-      const content = (previewEditor ? previewEditor.getValue() : document.getElementById("previewEditor").value) ||
-                      (templateEditor ? templateEditor.getValue() : document.getElementById("templateEditor").value) ||
-                      "";
+      const content = previewEditor ? previewEditor.getValue() : document.getElementById("previewEditor").value;
 
       if (!currentDirPath) {
         errorEl.textContent = "No directory selected.";
@@ -503,7 +584,7 @@
       templateEditor = CodeMirror.fromTextArea(templateTextarea, {
         mode: { name: "shell", path: "shell" },
         lineNumbers: true,
-        lineWrapping: true,
+        lineWrapping: false,
         indentUnit: 2,
         tabSize: 2,
         theme: "default",
@@ -512,13 +593,20 @@
       previewEditor = CodeMirror.fromTextArea(previewTextarea, {
         mode: { name: "shell", path: "shell" },
         lineNumbers: true,
-        lineWrapping: true,
+        lineWrapping: false,
         readOnly: true,
         indentUnit: 2,
         tabSize: 2,
         theme: "default",
       });
-      
+
+      const githubThemeToggle = document.getElementById("githubThemeToggle");
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      githubThemeToggle.checked = savedTheme === "github-light";
+      applyEditorTheme(githubThemeToggle.checked);
+
+      templateEditor.on("change", markPreviewStale);
+
       // Make CodeMirror editors resize with container
       const resizeEditors = () => {
         if (templateEditor) {
@@ -536,14 +624,20 @@
       });
 
       document.getElementById("reloadTemplateBtn").addEventListener("click", () => {
-        if (currentTemplateName) {
-          loadTemplate(currentTemplateName);
+        if (currentTemplateId) {
+          loadTemplate(currentTemplateId);
         }
       });
 
       document.getElementById("refreshVarsBtn").addEventListener("click", (e) => {
         e.preventDefault();
         extractVarsFromTemplateText();
+      });
+
+      document.getElementById("variablesForm").addEventListener("input", markPreviewStale);
+
+      githubThemeToggle.addEventListener("change", () => {
+        applyEditorTheme(githubThemeToggle.checked);
       });
 
       document.getElementById("previewBtn").addEventListener("click", (e) => {

@@ -88,6 +88,7 @@ def load_settings():
     defaults = {
         "additional_root": "",
         "additional_root_label": "",
+        "additional_template_dirs": [],
         "navbar_color": "#e3f2fd",
     }
     if os.path.isfile(SETTINGS_FILE):
@@ -148,6 +149,119 @@ def get_roots():
         })
     
     return roots
+
+
+def get_template_dirs() -> list[dict[str, str]]:
+    """Return bundled and user-configured template directories."""
+    template_dirs = [
+        {
+            "id": "default",
+            "label": "Bundled templates",
+            "path": os.path.realpath(TEMPLATE_DIR),
+        }
+    ]
+
+    settings = load_settings()
+    additional_template_dirs = settings.get("additional_template_dirs", [])
+    if not isinstance(additional_template_dirs, list):
+        additional_template_dirs = []
+
+    for index, directory in enumerate(additional_template_dirs, start=1):
+        if not directory or not os.path.isdir(directory):
+            continue
+        directory_real = os.path.realpath(directory)
+        label = os.path.basename(directory_real.rstrip(os.sep)) or "Templates"
+        template_dirs.append({
+            "id": "template_dir_%s" % index,
+            "label": label,
+            "path": directory_real,
+        })
+
+    return template_dirs
+
+
+def parse_template_id(template_id: str) -> tuple[int | None, str | None]:
+    """Split a template id into source index and safe file name."""
+    if "::" not in template_id:
+        return 0, template_id
+
+    source_index_text, template_name = template_id.split("::", 1)
+    try:
+        source_index = int(source_index_text)
+    except ValueError:
+        return None, None
+
+    return source_index, template_name
+
+
+def validate_template_dirs(paths: list[str]) -> list[str]:
+    """Normalize and validate user-provided template directories."""
+    validated_dirs = []
+    seen_dirs = set()
+
+    for path in paths:
+        path_clean = path.strip()
+        if not path_clean:
+            continue
+        if not os.path.isdir(path_clean):
+            abort(
+                400,
+                description="Template directory is not valid: %s" % path_clean,
+            )
+
+        path_real = os.path.realpath(path_clean)
+        if path_real in seen_dirs:
+            continue
+        seen_dirs.add(path_real)
+        validated_dirs.append(path_real)
+
+    return validated_dirs
+
+
+def is_template_file(filename: str) -> bool:
+    """Return True for supported script template filenames."""
+    return filename.endswith((".sh", ".bash", ".sh.j2", ".py", ".R"))
+
+
+def get_template_type(filename: str) -> str:
+    """Return a readable template type from the filename."""
+    if filename.endswith((".sh", ".bash", ".sh.j2")):
+        return "Shell"
+    if filename.endswith(".py"):
+        return "Python"
+    if filename.endswith(".R"):
+        return "R"
+    return "Text"
+
+
+def label_template_files(template_files: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Show source context only for duplicate template filenames."""
+    filename_counts = {}
+    source_label_counts = {}
+    for template_file in template_files:
+        filename = template_file["name"]
+        source_label = template_file["source_label"]
+        filename_counts[filename] = filename_counts.get(filename, 0) + 1
+        source_label_counts[source_label] = (
+            source_label_counts.get(source_label, 0) + 1
+        )
+
+    labeled_templates = []
+    for template_file in template_files:
+        filename = template_file["name"]
+        label = filename
+        if filename_counts[filename] > 1:
+            source_label = template_file["source_label"]
+            if source_label_counts[source_label] > 1:
+                source_label = template_file["source_path"]
+            label = "%s (%s)" % (filename, source_label)
+
+        labeled_templates.append({
+            "id": template_file["id"],
+            "label": label,
+        })
+
+    return labeled_templates
 
 # ============================================================================
 # Application Initialization
@@ -241,7 +355,7 @@ def inject_template_vars():
 @app.route("/")
 def index():
     """Serve the main template editor page."""
-    logger.info("Serving index page from %s", TEMPLATE_DIR)
+    logger.info("Serving index page")
     return render_template("index.html")
 
 
@@ -259,30 +373,44 @@ def settings_page():
 @app.route("/api/templates", methods=["GET"])
 def list_templates():
     """Return list of available bash script templates."""
-    logger.info("Listing templates in %s", TEMPLATE_DIR)
-    templates = []
-    if os.path.isdir(TEMPLATE_DIR):
-        for entry in sorted(os.listdir(TEMPLATE_DIR)):
+    template_dirs = get_template_dirs()
+    logger.info("Listing templates in %s", [item["path"] for item in template_dirs])
+    template_files = []
+    for source_index, template_dir in enumerate(template_dirs):
+        directory = template_dir["path"]
+        if not os.path.isdir(directory):
+            continue
+        for entry in sorted(os.listdir(directory)):
             if entry.startswith("."):
                 continue
-            if not (
-                entry.endswith(".sh")
-                or entry.endswith(".bash")
-                or entry.endswith(".sh.j2")
-            ):
+            if not is_template_file(entry):
                 continue
-            templates.append({"id": entry, "label": entry})
-    return jsonify({"templates": templates})
+            template_files.append({
+                "id": "%s::%s" % (source_index, entry),
+                "name": entry,
+                "source_label": template_dir["label"],
+                "source_path": template_dir["path"],
+            })
+    return jsonify({"templates": label_template_files(template_files)})
 
 
 @app.route("/api/template/<name>", methods=["GET"])
 def get_template(name):
     """Return the content of a specific template and the variables in it."""
-    if "/" in name or "\\" in name or ".." in name:
+    source_index, template_name = parse_template_id(name)
+    if source_index is None or not template_name:
+        logger.warning("Rejected template id %r (invalid)", name)
+        abort(400, description="Invalid template name")
+
+    if "/" in template_name or "\\" in template_name or ".." in template_name:
         logger.warning("Rejected template name %r (invalid)", name)
         abort(400, description="Invalid template name")
 
-    template_path = os.path.join(TEMPLATE_DIR, name)
+    template_dirs = get_template_dirs()
+    if source_index < 0 or source_index >= len(template_dirs):
+        abort(404, description="Template source not found")
+
+    template_path = os.path.join(template_dirs[source_index]["path"], template_name)
     logger.info("Loading template %s", template_path)
     if not os.path.isfile(template_path):
         abort(404, description="Template not found")
@@ -296,7 +424,14 @@ def get_template(name):
         abort(500, description="Failed to read template")
 
     variables = extract_jinja_variables(content)
-    return jsonify({"name": name, "content": content, "variables": variables})
+    return jsonify({
+        "id": name,
+        "name": template_name,
+        "source_path": template_dirs[source_index]["path"],
+        "type": get_template_type(template_name),
+        "content": content,
+        "variables": variables,
+    })
 
 
 @app.route("/api/roots", methods=["GET"])
@@ -323,6 +458,7 @@ def api_save_settings():
     data = request.get_json(silent=True) or {}
     additional_root = data.get("additional_root", "").strip()
     additional_root_label = data.get("additional_root_label", "").strip()
+    additional_template_dirs = data.get("additional_template_dirs", [])
     navbar_color = data.get("navbar_color", "#e3f2fd").strip()
     
     # Validate the path if provided
@@ -331,6 +467,12 @@ def api_save_settings():
             abort(400, description="Path is not a valid directory")
         # Normalize the path
         additional_root = os.path.realpath(additional_root)
+
+    if isinstance(additional_template_dirs, str):
+        additional_template_dirs = additional_template_dirs.splitlines()
+    if not isinstance(additional_template_dirs, list):
+        abort(400, description="Template directories must be a list")
+    additional_template_dirs = validate_template_dirs(additional_template_dirs)
     
     # Validate navbar color is in allowed list
     allowed_values = [color[0] for color in ALLOWED_NAV_COLORS]
@@ -342,6 +484,7 @@ def api_save_settings():
     settings = {
         "additional_root": additional_root,
         "additional_root_label": additional_root_label,
+        "additional_template_dirs": additional_template_dirs,
         "navbar_color": navbar_color,
     }
     if save_settings(settings):
