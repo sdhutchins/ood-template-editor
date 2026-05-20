@@ -31,6 +31,20 @@ cd ood-template-editor
 
 Run `setup.sh` to create a virtual environment and install dependencies. The script also creates `bin/python`, which Passenger uses instead of system Python. This ensures Passenger uses your venv's Python with Flask installed.
 
+## Local Development
+
+This app targets Python 3.11. For local development, run the app in Docker:
+
+```bash
+docker compose up --build
+```
+
+Open the app at <http://localhost:5001>.
+
+The Docker workflow mounts the repository at `/app` so code changes are visible
+inside the container. It also mounts your home directory at `/workspace`, which
+is exposed through `TEMPLATE_EDITOR_ROOT` for local file browsing and saves.
+
 ## Learn More
 
 - [Open OnDemand Documentation](https://osc.github.io/ood-documentation/latest/)
